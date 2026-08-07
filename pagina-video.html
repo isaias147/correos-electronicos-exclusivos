@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maranatha Zoom - Video</title>
+
+  <style>
+    /* Reseteo básico para que todos los navegadores partan igual */
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #FFFFFF;
+      color: #222222;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Contenedor principal: centrado, ancho máximo y márgenes generosos */
+    .contenedor {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 40px 24px 56px 24px;
+      text-align: center;
+    }
+
+    /* Logo arriba, centrado */
+    .logo {
+      display: block;
+      margin: 0 auto 32px auto;
+      max-width: 220px;
+      width: 100%;
+      height: auto;
+    }
+
+    /* Saludo personal: es el elemento más grande después del video */
+    .saludo {
+      font-size: 28px;
+      font-weight: 600;
+      line-height: 1.3;
+      margin: 0 0 32px 0;
+      color: #1a1a1a;
+    }
+
+    /* Envoltorio del video, relativo para poder superponer el botón de sonido */
+    .video-envoltorio {
+      position: relative;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* Botón "Activar sonido" superpuesto sobre el video */
+    .boton-sonido {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: none; /* Oculto por defecto, se muestra solo si el navegador bloquea el audio */
+      align-items: center;
+      gap: 10px;
+      padding: 16px 28px;
+      background-color: rgba(0, 0, 0, 0.72);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 999px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    /* Cuando el JavaScript decide mostrarlo, le agrega esta clase */
+    .boton-sonido.visible {
+      display: inline-flex;
+    }
+
+    /* Foco de teclado bien visible, para accesibilidad */
+    .boton-sonido:focus-visible {
+      outline: 3px solid #FFFFFF;
+      outline-offset: 3px;
+    }
+
+    /* Ícono de altavoz hecho con SVG, dentro del propio botón */
+    .icono-altavoz {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    /* Línea de cierre debajo del video */
+    .cierre {
+      margin-top: 28px;
+      font-size: 17px;
+      color: #444444;
+    }
+
+    /* Ajustes para pantallas pequeñas: el logo se reduce y el texto también */
+    @media (max-width: 480px) {
+      .logo {
+        max-width: 150px;
+      }
+
+      .saludo {
+        font-size: 22px;
+      }
+
+      .boton-sonido {
+        font-size: 15px;
+        padding: 12px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="contenedor">
+
+    <!-- 1. Logo -->
+    <img
+      class="logo"
+      src="https://maranathazoom.com/wp-content/uploads/2026/08/Logo-EEC-con-alfa-scaled.png"
+      alt="Escuela del Evangelio Cristiano"
+    />
+
+    <!-- 2. Saludo personal. La variable {{ $json.recipient_name }} la reemplaza n8n antes de servir la página -->
+    <p class="saludo">Hola, {{ $json.recipient_name }}</p>
+
+    <!-- 3. Video de Vimeo, tal como viene el embed original -->
+    <div class="video-envoltorio">
+      <div style="padding:53.13% 0 0 0;position:relative;">
+        <iframe
+          id="reproductor"
+          src="https://player.vimeo.com/video/1216490516?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=1&muted=1"
+          frameborder="0"
+          allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
+          referrerpolicy="strict-origin-when-cross-origin"
+          style="position:absolute;top:0;left:0;width:100%;height:100%;"
+          title="Agradecimiento Zoom"
+        ></iframe>
+      </div>
+
+      <!-- Botón de sonido: empieza oculto, el JavaScript decide si mostrarlo -->
+      <button type="button" id="boton-sonido" class="boton-sonido">
+        <svg class="icono-altavoz" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 9V15H8L13 20V4L8 9H4Z" fill="currentColor" />
+          <path d="M16.5 8.5C17.5 9.5 18 10.7 18 12C18 13.3 17.5 14.5 16.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+          <path d="M19 6C20.9 7.9 22 10 22 12C22 14 20.9 16.1 19 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+        </svg>
+        <span>Activar sonido</span>
+      </button>
+    </div>
+
+    <!-- 4. Línea de cierre -->
+    <p class="cierre">Gracias por acompañarnos.</p>
+
+  </div>
+
+  <!-- Librería oficial de Vimeo, necesaria para controlar el reproductor desde JavaScript -->
+  <script src="https://player.vimeo.com/api/player.js"></script>
+
+  <script>
+    /*
+      Estrategia de audio:
+      1) El video ya arranca solo y silenciado (así lo permiten los navegadores).
+      2) Apenas carga la página, intentamos quitarle el silencio con JavaScript.
+      3) Si el navegador nos bloquea, mostramos un botón para que la persona
+         active el sonido con un clic.
+      4) Cualquier clic o toque en la página, aunque sea fuera del botón,
+         también intenta activar el sonido.
+      Todo envuelto en try/catch para que, pase lo que pase, el video se vea igual.
+    */
+
+    // Esperamos a que el HTML esté listo antes de tocar el DOM
+    document.addEventListener('DOMContentLoaded', function () {
+      try {
+        var iframe = document.getElementById('reproductor');
+        var boton = document.getElementById('boton-sonido');
+
+        // Si por algún motivo no existe Vimeo o el iframe, no hacemos nada más
+        if (typeof Vimeo === 'undefined' || !iframe) {
+          return;
+        }
+
+        var player = new Vimeo.Player(iframe);
+        var sonidoActivado = false;
+
+        // Muestra el botón superpuesto de "Activar sonido"
+        function mostrarBoton() {
+          if (boton) {
+            boton.classList.add('visible');
+          }
+        }
+
+        // Oculta el botón, ya sea porque el sonido se activó o el usuario lo pulsó
+        function ocultarBoton() {
+          if (boton) {
+            boton.classList.remove('visible');
+          }
+        }
+
+        // Intenta activar el sonido del reproductor de Vimeo
+        function intentarActivarSonido() {
+          if (sonidoActivado) {
+            return;
+          }
+
+          try {
+            player.setMuted(false)
+              .then(function () {
+                return player.setVolume(1);
+              })
+              .then(function () {
+                return player.getMuted();
+              })
+              .then(function (sigueSilenciado) {
+                if (sigueSilenciado) {
+                  // El navegador lo dejó silenciado a pesar del intento
+                  mostrarBoton();
+                } else {
+                  sonidoActivado = true;
+                  ocultarBoton();
+                }
+              })
+              .catch(function () {
+                // La promesa falló: el navegador bloqueó el audio
+                mostrarBoton();
+              });
+          } catch (errorInterno) {
+            // Cualquier fallo inesperado de la API: mostramos el botón por las dudas
+            mostrarBoton();
+          }
+        }
+
+        // Acción al pulsar el botón "Activar sonido"
+        function activarConBoton() {
+          try {
+            player.setMuted(false)
+              .then(function () {
+                return player.setVolume(1);
+              })
+              .then(function () {
+                return player.setCurrentTime(0);
+              })
+              .then(function () {
+                sonidoActivado = true;
+                ocultarBoton();
+              })
+              .catch(function () {
+                // Si algo falla, igual ocultamos el botón para no molestar
+                ocultarBoton();
+              });
+          } catch (errorInterno) {
+            ocultarBoton();
+          }
+        }
+
+        if (boton) {
+          boton.addEventListener('click', activarConBoton);
+        }
+
+        // Cualquier clic o toque en la página también intenta activar el sonido,
+        // pero solo una vez (con { once: true })
+        document.addEventListener('click', intentarActivarSonido, { once: true });
+        document.addEventListener('touchstart', intentarActivarSonido, { once: true });
+
+        // Apenas el reproductor esté listo, probamos activar el sonido automáticamente
+        player.ready()
+          .then(function () {
+            intentarActivarSonido();
+          })
+          .catch(function () {
+            // Si el reproductor nunca queda listo, no mostramos errores, solo salimos
+          });
+
+      } catch (error) {
+        // Si la API de Vimeo falla por cualquier motivo, la página sigue mostrando
+        // el video normalmente, sin romper nada ni ensuciar la consola
+      }
+    });
+  </script>
+
+</body>
+</html>
